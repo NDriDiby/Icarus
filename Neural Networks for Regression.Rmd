@@ -1,0 +1,92 @@
+---
+title: "Homework.3"
+author: "N'Dri Diby"
+date: "2/17/2020"
+output: html_document
+---
+
+read the data
+```{r}
+conc = read.csv("/Users/pm3796gb/Desktop/DSCI 425/Homework.3/Concrete.csv")
+
+head(conc)
+dim(conc)
+names(conc)
+```
+
+Neural network
+```{r}
+#fitting a neural network model
+train = sample(1:1030,size=floor(.6666*1030),replace=F)
+
+library(nnet)
+conc.nnet = nnet(Strength~.,data=conc[train,],size=10,linout=T,skip=T,maxit=500,decay=0.001)
+
+summary(conc.nnet)
+
+trendscat(conc$Strength[train],fitted(conc.nnet))
+cor(conc$Strength[train],fitted(conc.nnet))^2
+
+#prediction
+y.predict = predict(conc.nnet,data=conc[-train,])
+
+#prediction accuracy
+PredAcc(conc$Strength[-train],y.predict)
+
+#plot
+plot(conc.nnet)
+#new data set
+con = conc
+
+con$Strength = log(con$Strength)
+#transformation
+conc.nnet.trans = nnet(Strength~.,data=con[train,],size=8,linout=T,skip=T,maxit=500,decay=0.001)
+
+summary(conc.nnet.trans)
+
+trendscat(con$Strength[train],fitted(conc.nnet.trans))
+cor(con$Strength[train],fitted(conc.nnet.trans))^2
+
+#prediction.trans
+y.predict.trans = predict(conc.nnet.trans,data=con[-train,])
+
+#prediction accuracy.trans
+PredAcc(exp(con$Strength[-train]),exp(y.predict.trans))
+
+
+
+```
+
+```{r}
+#prediction
+y.pred = predict(conc.nnet,data=concrete[-train,])
+
+#prediction accuracy
+PredAcc(conc$Strength[-train],y.pred)
+```
+
+MLR
+```{r}
+#fit model
+model = lm(Strength~.,data=conc[train,])
+summary(model)
+plot(model)
+
+y.pred.model = predict(model,data=conc[-train])
+PredAcc(conc$Strength[-train],y.pred.model)
+
+```
+
+MARS
+```{r}
+
+library(earth)
+conc.mars =earth(sqrt(Strength)~.,data = conc[train,],degree = 1,nfold=10,ncross=10)
+pred.conc = predict(conc.mars,conc[-sam,])^2
+y1= conc[-train,]
+PredAcc(y1$Strength,pred.conc)
+summary(conc.mars)
+plot(conc.mars)
+
+```
+
