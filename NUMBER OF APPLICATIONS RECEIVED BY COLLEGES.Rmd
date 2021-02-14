@@ -1,0 +1,286 @@
+---
+title: "Homework.4"
+author: "N'Dri Diby"
+date: "2/25/2020"
+output: html_document
+---
+
+```{r}
+#library
+library(ISLR)
+library(glmnet)
+
+#load the dataset
+College
+head(College)
+names(College)
+
+#subset the data
+College2 = data.frame(PctAccept=100*(College$Accept/College$Apps),College[,-c(2:3)])
+
+head(College2)
+```
+
+```{r}
+set.seed(1)
+
+#test/train
+sam = sample(1:length(y),floor(.6667*length(y)),replace=F)
+
+#build the model
+X = model.matrix(PctAccept~.,data=College2)[,-1]
+y = College2$PctAccept
+Xs = scale(X)
+xs.frm = data.frame(y,Xs)
+PA.ols = lm(y~Xs,data=xs.frm,subset=sam)
+ypred = predict(PA.ols,newdata=xs.frm[-sam,])
+RMSEP.ols = sqrt(mean((y[-sam]-ypred)^2))
+RMSEP.ols
+
+
+#ridge model
+grid = 10^seq(10,-2,length=200)
+ridge.model = glmnet(Xs,y,alpha=0,lambda=grid)
+plot(ridge.model)
+plot(ridge.model,xvar='lambda')
+"we see that the shrinkage happend around lambda = 7"
+"so the best lambda should be between 7 and 20"
+
+
+
+#lasso model
+lasso.mod = glmnet(Xs,y,alpha=1,lambda=grid)
+plot(lasso.mod)
+plot(lasso.mod,xvar='lambda')
+"we see that the shrinkage happend around lambda = 2"
+"so the best lambda should be between 2 and 20"
+
+
+```
+```{r}
+#get the best lambda for ridge
+cv.out = cv.glmnet(X,y,alpha=0)
+plot(cv.out)
+bestlam.rid = cv.out$lambda.min
+bestlam.rid
+
+#Ridge
+ridge.model=glmnet(Xs[sam,],y[sam],lambda=bestlam.rid,alpha=0)
+ridge.pred = predict(ridge.model,newx=Xs[-sam,])
+rmse.ridge = sqrt(mean((ridge.pred-y[-sam])^2))
+rmse.ridge
+
+#get the best lambda for lasso
+cv.out = cv.glmnet(X,y,alpha=1)
+plot(cv.out)
+bestlam.lasso = cv.out$lambda.min
+bestlam.lasso
+
+lasso.model=glmnet(Xs[sam,],y[sam],lambda=bestlam.lasso,alpha=1)
+lasso.pred = predict(lasso.model,,newx=Xs[-sam,])
+rmse.lasso = sqrt(mean((lasso.pred-y[-sam])^2))
+rmse.lasso
+
+"we can see that the ridge perfrom better than the OLS and the lasso model"
+
+
+#looking at the coeficient
+all.coef = cbind(coef(PA.ols),coef(ridge.model),coef(lasso.model))
+all.coef
+
+"we can see that from the lasso model that some coeficient had been reduce to  zero or has not been use in the model. when it come the ridge model we can clearly see how each coeficient has been reduced."
+
+```
+
+```{r}
+     
+#ridge    
+plot(y[-sam],predict(ridge.model,newx=Xs[-sam,]),xlab="test Y values",ylab="Predicted test Y-values")
+abline(ridge.model,'red')
+
+
+
+#lasso    
+plot(y[-sam],predict(lasso.model,newx=Xs[-sam,]),xlab="test Y values",ylab="Predicted test Y-values")
+```
+
+```{r}
+#monte carlo cross validation
+MLR.ssmc = function(fit,p=.667,M=1000) {
+RMSEP = rep(0,M)
+MAEP = rep(0,M)
+MAPEP = rep(0,M)
+y = fit$model[,1]
+x = fit$model[,-1]
+data = fit$model
+n = nrow(data)
+for (i in 1:M) {
+    ss = floor(n*p)
+    sam = sample(1:n,ss,replace=F)
+    fit2 = lm(formula(fit),data=data[sam,])
+    ypred = predict(fit2,newdata=x[-sam,])
+    RMSEP[i] = sqrt(mean((y[-sam]-ypred)^2))
+    MAEP[i] = mean(abs(y[-sam]-ypred))
+    yp = ypred[y[-sam]!=0]
+    ya = y[-sam][y[-sam]!=0]
+    MAPEP[i]=mean(abs(yp-ya)/ya)
+}
+  cat("RMSEP =",mean(RMSEP),"  MAEP=",mean(MAEP),"  MAPEP=",mean(MAPEP))
+  cv = return(data.frame(RMSEP=RMSEP,MAEP=MAEP,MAPEP=MAPEP))
+}
+
+
+
+
+#monte carlo cross validation
+ glmnet.ssmc = function(X,y,p=.667,M=1000,alpha=1,lambda=1) {
+  RMSEP = rep(0,M)
+  MAEP = rep(0,M)
+  MAPEP = rep(0,M)
+  n = nrow(X)
+  for (i in 1:M) {
+    ss = floor(n*p)
+    sam = sample(1:n,ss,replace=F)
+    fit = glmnet(X[sam,],y[sam],lambda=lambda,alpha=alpha)
+    ypred = predict(fit,newx=X[-sam,])
+    RMSEP[i] = sqrt(mean((y[-sam]-ypred)^2))
+    MAEP[i] = mean(abs(y[-sam]-ypred))
+    yp = ypred[y[-sam]!=0]
+    ya = y[-sam][y[-sam]!=0]
+    MAPEP[i]=mean(abs(yp-ya)/ya)
+  }
+  cat("RMSEP =",mean(RMSEP),"  MAEP=",mean(MAEP),"  MAPEP=",mean(MAPEP))
+  cv = return(data.frame(RMSEP=RMSEP,MAEP=MAEP,MAPEP=MAPEP)) 
+ }
+ 
+ 
+PA.ols = lm(y~Xs,data=College2,subset=sam)
+
+ols = lm(PctAccept~.,data=College2, subset=sam)
+
+ols.result = MLR.ssmc(ols)
+ 
+result.ridge = glmnet.ssmc(Xs,y,alpha = 0,lambda = bestlam.rid)
+
+result.lasso = glmnet.ssmc(Xs,y,alpha =1,lambda = bestlam.lasso)
+
+"the OLS perform better than the ridge and the lasso"
+
+
+```
+
+
+#using log transformation 
+
+```{r}
+#College$
+
+attach(College)
+
+College4 = data.frame(logApps=log(Apps),Private,logAcc=log(Accept),logEnr=log(Enroll),Top10perc,
+Top25perc,logFull=log(F.Undergrad),logPart=log(P.Undergrad),Outstate,Room.Board,Books,Personal,PhD,Terminal,S.F.Ratio,perc.alumni,logExp=log(Expend),Grad.Rate)
+
+detach(College)
+
+head(College4)
+
+
+```
+
+```{r}
+
+#build the model
+X.log = model.matrix(logApps~.,data=College4)[,-1]
+y.log = College4$logApps
+Xs.trans = scale(X.log)[,-2]
+dat = data.frame(y.log,Xs.trans)
+ols.log = lm(y.log~.,data=dat,subset=sam)
+ypred.log = predict(ols.log,newdata=dat[-sam,])
+ols.log.rmse = (sqrt(mean((y.log[-sam]-ypred.log)^2)))
+ols.log.rmse
+
+
+#ridge model
+grid = 10^seq(5,-2,length=200)
+ridge.mod.log = glmnet(Xs.trans,y.log,alpha=0,lambda=grid)
+plot(ridge.mod.log)
+plot(ridge.mod.log,xvar='lambda')
+"we see that the shrinkage happend around lambda = 5"
+"so the best lambda should be between 5 and 20"
+
+
+
+#lasso model
+lasso.mod.log = glmnet(Xs.trans,y.log,alpha=1,lambda=grid)
+plot(lasso.mod.log)
+plot(lasso.mod.log,xvar='lambda')
+"we see that the shrinkage happend around lambda = 1"
+"so the best lambda should be between 1 and 20"
+
+
+```
+
+```{r}
+#get the best lambda for ridge
+cv.out.log = cv.glmnet(Xs.trans,y.log,alpha=0)
+plot(cv.out.log)
+bestlam.rid.log = cv.out.log$lambda.min
+bestlam.rid.log
+
+ridge.model.log=glmnet(Xs.trans[sam,],y.log[sam],lambda=bestlam.rid.log,alpha=0)
+ridge.pred.log = predict(ridge.model.log,,newx=Xs.trans[-sam,])
+rmse.ridge.log = sqrt(mean((ridge.pred.log-y.log[-sam])^2))
+rmse.ridge.log
+
+#get the best lambda for lasso
+cv.out.log = cv.glmnet(Xs.trans,y.log,alpha=1)
+plot(cv.out.log)
+bestlam.lasso.log = cv.out.log$lambda.min
+bestlam.lasso.log
+
+lasso.model.log=glmnet(Xs.trans[sam,],y.log[sam],lambda=bestlam.lasso.log,alpha=1)
+lasso.pred.log = predict(lasso.model.log,,newx=Xs.trans[-sam,])
+rmse.lasso.log = sqrt(mean((lasso.pred.log-y.log[-sam])^2))
+rmse.lasso.log
+
+"we can see that the ridge perfrom better than the OLS and the lasso mofel"
+
+
+#looking at the coeficient
+all.coef.log = cbind(coef(ols.log),coef(ridge.model.log),coef(lasso.model.log))
+all.coef.log
+
+coef(ols.log)
+"we can observe that the lasso model's coeficient  had been reduce to their lowest value or has not been use in the model. when it come to ridge we can clearly see how each coeficient has been reduced but not to zero."
+```
+
+```{r}
+
+#plot the model
+plot(y[test],predict(ridge.mod,newx=X[test,]))
+
+#ridge
+plot(y.log[-sam],predict(ridge.model.log,newx=Xs.trans[-sam,]),xlab="test Y values",ylab="Predicted test Y-values")
+
+#lasso    
+plot(y.log[-sam],predict(lasso.model.log,newx=Xs.trans[-sam,]),xlab="test Y values",ylab="Predicted test Y-values")
+
+
+```
+
+```{r}
+ols = lm(y.log~.,data=dat,subset = sam)
+ols.result.log = MLR.ssmc(ols.log)
+ 
+result.ridge.log = glmnet.ssmc(Xs.trans,y.log,alpha = 0,lambda = bestlam.rid.log)
+
+result.lasso.log = glmnet.ssmc(Xs.trans,y.log,alpha =1,lambda = bestlam.lasso.log)
+
+"the lasso model perform better than the OLS and the ridge model"
+
+
+
+
+
+```
+
