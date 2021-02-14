@@ -1,0 +1,197 @@
+---
+title: "Homework.2"
+author: "N'Dri Diby"
+date: "2/6/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Load the data
+
+concrete = read.csv("/Users/pm3796gb/Desktop/DSCI 425/Homework.2/Concrete.csv")
+
+#explore the data
+head(concrete)
+summary(concrete)
+#pairs.plus(concrete)
+set.seed(1)
+
+```
+
+spliting the data int0 train/test set
+```{r}
+#split the data into train and test set
+sam = sample(1:1030,size=floor(.6666*1030),replace=F)
+#train = concrete[sam,]
+#test = concrete[-sam,]
+y = concrete$Strength
+```
+
+Fiiting the model 
+```{r}
+#fitting a MLR
+train.mod1= lm(Strength~.,data=concrete[sam,])
+
+#plot the model
+plot(train.mod1)
+
+summary(train.mod1)
+
+
+```
+
+predict the response
+
+```{r}
+#prediction
+y.pred = predict(train.mod1,data=concrete[-sam,])
+
+#prediction accuracy
+PredAcc(concrete$Strength[-sam],y.pred)
+
+```
+
+stepwise model
+```{r}
+concrete.step = step(train.mod1)
+summary(concrete.step)
+plot(concrete.step)
+
+```
+
+Ace method
+```{r}
+library(acepack)
+x = model.matrix(Strength~.,data=concrete)[,-1]
+y=concrete$Strength
+concrete.ace = ace(x,y)
+concrete.ace$rsq
+maceplot(x,y,concrete.ace)
+
+```
+
+Ace method predictors and response transormed
+
+```{r}
+#building the model
+concrete.ace.trans = lm( formula=Strength~ poly(Cement,3)+poly(BlastFurn,3)+ poly(FlyAsh,2)+ Water+ poly(Superplast,2)+ poly(CourseAgg,2)+ sqrt(FineAge)+ poly(Age,2),data=concrete[sam,])
+
+summary(concrete.ace.trans)
+
+plot(concrete.ace.trans)
+
+#concrete.ace.trans = lm( formula=Strength^0.333~ Cement+poly(BlastFurn,3)+ poly(FlyAsh,2)+ poly(Water,2)+ poly(Superplast,2)+ CourseAgg+ sqrt(FineAge)+ poly(Age,2),data=concrete[sam,])
+```
+
+Avas Method
+```{r}
+
+x.avas = model.matrix(Strength~.,data=concrete)[,-1]
+y.avas=concrete$Strength
+concrete.avas = avas(x,y)
+concrete.avas$rsq
+maceplot(x,y,concrete.avas)
+
+```
+
+```{r}
+#building the model
+
+concrete.avas.trans = lm( formula=Strength^0.333~ poly(Cement,2)+poly(BlastFurn,2)+ poly(FlyAsh,2)+ poly(Water,2)+ poly(Superplast,2)+ CourseAgg+ FineAge+ sqrt(Age),data=concrete[sam,])
+
+summary(concrete.avas.trans)
+plot(concrete.avas.trans)
+```
+
+Ceres plot
+
+```{r}
+library(car)
+ceresPlots(train.mod1)
+
+concrete.ceres = lm(Strength~ Cement+ BlastFurn+ FlyAsh+ Water+ poly(Superplast,2)+ log(Age)+CourseAgg + FineAge,data=concrete[sam,])
+
+
+#lm(Strength~ Cement+ BlastFurn+ FlyAsh+ Water+ poly(Superplast,2)+ log(Age),data=concrete[sam,])
+
+summary(concrete.ceres)
+par(mfrow=c(2,2))
+plot(concrete.ceres)
+
+"this model is better than Ace and Avas"
+```
+
+Box-Cox Procedure
+```{r}
+y.con = concrete$Strength
+powerTransform(concrete$Strength)
+
+concrete.box = lm(log(Strength)~.,data=concrete[sam,])
+summary(concrete.box)
+
+
+```
+
+lm(Strength~ Cement+ BlastFurn+ FlyAsh+ Water+ poly(Superplast,2)+ log(Age),data=concrete[sam,])
+
+Fitting the best model
+```{r}
+#lm( formula=Strength~ poly(Cement,3)+poly(BlastFurn,3)+ poly(FlyAsh,2)+ Water+ poly(Superplast,2)+ poly(CourseAgg,2)+ sqrt(FineAge)+ poly(Age,2),data=concrete[sam,])
+
+test = concrete[-sam,]
+head(test)
+test$Superplast = poly(test$Superplast,2)
+test$Age = poly(test$Age,2)
+test$Cement = poly(test$Cement,3)
+test$BlastFurn = poly(test$BlastFurn,3)
+test$FlyAsh = poly(test$FlyAsh,2)
+test$CourseAgg = poly(test$CourseAgg,2)
+test$FineAge = sqrt(test$FineAge)
+ypred.ceres = predict(concrete.ceres,data=test)
+PredAcc(concrete$Strength[-sam],ypred.ceres)
+
+```
+
+
+MARS degree 1
+
+```{r}
+#building the model
+library(earth)
+concrete.mars1 = earth(sqrt(Strength)~.,data=concrete[sam,],degree=1,nfold=5,ncross=10,keepxy = TRUE,nk=20)
+
+summary(concrete.mars1)
+
+plot(concrete.mars1)
+
+#predict
+ypre.masr1 = predict(concrete.mars1,newdata=concrete[-sam,])^2
+PredAcc(concrete$Strength[-sam],ypre.masr1)
+
+```
+
+
+
+MARS degree 2
+
+```{r}
+concrete.mars2 = earth(sqrt(Strength)~.,data=concrete[sam,],degree=2,nfold=10,ncross=5,keepxy = TRUE,nk=20 )
+
+summary(concrete.mars2)
+
+plot(concrete.mars2)
+
+#predict
+ypre.masr2 = predict(concrete.mars2,newdata=concrete[-sam,])^2
+PredAcc(concrete$Strength[-sam],ypre.masr2)
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
